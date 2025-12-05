@@ -187,7 +187,7 @@
                 CONT_IMG_DIR="$CANDIDATE_FOLDER"
             fi
         fi
-	ENV_HASH=$(cat "$CONT_IMG_DIR"/* | openssl sha256 | cut -f2 -d' ')
+	ENV_HASH=$(find "$CONT_IMG_DIR" -type f -exec cat {} \; | openssl sha256 | cut -f2 -d' ')
 	if [[ -z "$CONT_IMG_BASENAME" ]]; then
 	    CONT_IMG_BASENAME=$(basename $(realpath ${CONT_IMG_DIR}))
 	fi
