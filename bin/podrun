@@ -1,105 +1,168 @@
 #!/bin/bash
 # -*- mode: shell-script-mode -*-
-#
-# The curly braces on the line below allows us to edit this file without worrying
-# if doing so while the script is running.
-{
-    IMAGE=""
-    CONT_IMG_DIR=""
-    CONT_IMG_BASENAME=""
-    NAME=""
-    WITH_GUI=0
-    WITH_GPU=0
-    WITH_AUDIO=0
-    DO_MOUNT_CWD=1
-    show_help(){
-        echo "Launch an container using podman-run with some defaults:"
-        echo " - mounts current working directory with literal absolute path"
-        echo " - remove container after exit (ephemeral container)"
-        echo " - seccomp=unconfined (needed for e.g. clang's address sanitizer)"
-        echo " - detach key is set not to interfere with Ctrl-p which is often 'previous'"
-        echo " - TERM environment variable is set to xterm-256color"
-        echo ""
-        echo "also supports building & caching container images on-the-fly."
-        echo ""
-        echo "Usage:"
-        echo "--cont-img-dir       path to folder with ./Containerfile"
-        echo "--cont-img-basename  basename if basename of img-dir is not suitable"
-        echo "--image              name of image (overrides --cont-img-dir), e.g. ubuntu:jammy"
-        echo "--name               name of container, default is basename of image"
-        echo "--gui                set DISPLAY, mount X11 socket folder. Note, for X11 this automatically adds: --net=host"
-        echo "--gpu                mount /dev/dri, for OpenGL, test with e.g. glxgears from mesa-utils"
-        echo "--audio              mount /dev/snd, and e.g. pulseaudio socket"
-        echo "--no-mount-cwd       disable default mounting of current working directory"
-        echo ""
-        echo "Example:"
-        echo ' $ podrun -v ~/.ssh:/root/.ssh -v ~/.gnupg:/root/.gnupg --image alpine:latest'
-        echo ' $ podrun --gui --image docker.io/silex/emacs:master-alpine -- emacs ~/.bashrc '
-        echo ' $ podrun --gui --cont-img-dir ~/dotfiles/containers/gccemacs-doom/env -- ~/.emacs.d/bin/doom sync; emacs ~/.bashrc '
-        echo ''
-        echo 'Note that you can override both --image and --cont-img-dir with the environment variable PODRUN_IMAGE_OVERRIDE.'
-    }
-    declare -a PODMAN_RUN_ARGS
-    while [ $# -gt 0 ]; do
-        case "$1" in
-            -h|--help|\?)
-                show_help
-                exit 0
-                ;;
-            --name)
-                shift
-                NAME=$1
-                shift
-                ;;
-            --no-mount-cwd)
-                DO_MOUNT_CWD=0
-                shift
-                ;;
-            --image)
-                shift
-                IMAGE=$1
-                shift
-                ;;
-            --cont-img-dir)
-                shift
-                CONT_IMG_DIR=$1
-                shift
-                ;;
-            --cont-img-basename)
-                shift
-                CONT_IMG_BASENAME=$1
-                shift
-                ;;
-            --gui|--x11)
-                WITH_GUI=1
-                shift
-                ;;
-            --gpu)
-                WITH_GPU=1
-                shift
-                ;;
-            --audio)
-                WITH_AUDIO=1
-                shift
-                ;;
-            --)
-                shift
-                break
-                ;;
-            *)
-                PODMAN_RUN_ARGS+=("$1")
-                shift
-                ;;
-                # show_help
-                # exit 1
-                # ;;
-        esac
-    done
 
-    if [ $# -eq 0 ]; then
-        >&2 echo "No command to execute, exiting."
-        exit 1
+show_help(){
+    echo "Launch an container using podman-run with some defaults:"
+    echo " - mounts current working directory with literal absolute path"
+    echo " - remove container after exit (ephemeral container)"
+    echo " - seccomp=unconfined (needed for e.g. clang's address sanitizer)"
+    echo " - detach key is set not to interfere with Ctrl-p which is often 'previous'"
+    echo " - TERM environment variable is set to xterm-256color"
+    echo ""
+    echo "also supports building & caching container images on-the-fly."
+    echo ""
+    echo "Usage:"
+    echo "--cont-img-dir       path to folder with ./Containerfile"
+    echo "--cont-img-basename  basename if basename of img-dir is not suitable"
+    echo "--image              name of image (overrides --cont-img-dir), e.g. ubuntu:jammy"
+    echo "--name               name of container, default is basename of image"
+    echo "--gui                set DISPLAY, mount X11 socket folder. Note, for X11 this automatically adds: --net=host"
+    echo "--gpu                mount /dev/dri, for OpenGL, test with e.g. glxgears from mesa-utils"
+    echo "--audio              mount /dev/snd, and e.g. pulseaudio socket"
+    echo "--no-mount-cwd       disable default mounting of current working directory"
+    # echo "--gpg-agent          passthrough of GPG-agent"
+    # echo "--ssh-agent          passthrough of SSH-agent"
+    echo ""
+    echo "Example:"
+    echo ' $ podrun -v ~/.ssh:/root/.ssh -v ~/.gnupg:/root/.gnupg --image alpine:latest'
+    echo ' $ podrun --gui --image docker.io/silex/emacs:master-alpine -- emacs ~/.bashrc '
+    echo ' $ podrun --gui --cont-img-dir ~/dotfiles/containers/gccemacs-doom/env -- ~/.emacs.d/bin/doom sync; emacs ~/.bashrc '
+    echo ''
+    echo 'Note that you can override both --image and --cont-img-dir with the environment variable PODRUN_IMAGE_OVERRIDE.'
+    echo 'Some env vars are preserved, set e.g. TERM=xterm-256color for colored terminal.'
+}
+
+CONT_IMG_BASENAME=""
+CONT_IMG_DIR=""
+DO_MOUNT_CWD=1
+IMAGE=""
+NAME=""
+WITH_AUDIO=0
+# WITH_GPG_AGENT=0
+WITH_GPU=0
+WITH_GUI=0
+WITH_MORE_ENV_VARS=0
+# WITH_SSH_AGENT=0
+
+# https://github.com/containers/toolbox/blob/31e01ac46b0e1caa0e72275148e5c364e9c08459/src/pkg/utils/utils.go#L69-L94
+preserved_vars=(COLORTERM \
+                    TERM \
+                    VTE_VERSION )
+
+# Parse cmd line args
+declare -a PODMAN_RUN_ARGS
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --audio)
+            WITH_AUDIO=1
+            shift
+            ;;
+        --cont-img-dir)
+            shift
+            CONT_IMG_DIR=$1
+            shift
+            ;;
+        --cont-img-basename)
+            shift
+            CONT_IMG_BASENAME=$1
+            shift
+            ;;
+        # --gpg-agent)
+        #     shift
+        #     WITH_GPG_AGENT=1
+        #     ;;
+        --gpu)
+            WITH_GPU=1
+            shift
+            ;;
+        --gui|--x11)
+            WITH_GUI=1
+            shift
+            ;;
+        -h|--help|\?)
+            show_help
+            exit 0
+            ;;
+        --image)
+            shift
+            IMAGE=$1
+            shift
+            ;;
+        --name)
+            shift
+            NAME=$1
+            shift
+            ;;
+        --no-mount-cwd)
+            DO_MOUNT_CWD=0
+            shift
+            ;;
+        # --ssh-agent)
+        #     WITH_SSH_AGENT=1
+        #     shift
+        #     ;;
+        --with-more-env-vars)
+            WITH_MORE_ENV_VARS=1
+            shift
+            ;;
+        --)
+            shift
+            break
+            ;;
+        *)
+            PODMAN_RUN_ARGS+=("$1")
+            shift
+            ;;
+        # show_help
+        # exit 1
+        # ;;
+    esac
+done
+
+if [ $# -eq 0 ]; then
+    >&2 echo "No command to execute, exiting."
+    exit 1
+fi
+
+export TERM=${TERM:-xterm-256color}
+
+
+main () {
+    if [[ $WITH_MORE_ENV_VARS == 1 ]]; then
+        preserved_vars+=( DBUS_SESSION_BUS_ADDRESS \
+                              DBUS_SYSTEM_BUS_ADDRESS \
+                              DESKTOP_SESSION \
+                              LANG \
+                              SHELL \
+                              SSH_AUTH_SOCK \
+                              TOOLBOX_PATH \
+                              USER \
+                              XAUTHORITY \
+                              XDG_DATA_DIRS \
+                              XDG_MENU_PREFIX \
+                              XDG_RUNTIME_DIR \
+                              XDG_SEAT \
+                              XDG_VTNR )
+        if [[ $WITH_GUI == 1 ]]; then
+            preserved_vars+=( DISPLAY \
+                                  WAYLAND_DISPLAY \
+                                  XDG_SESSION_CLASS \
+                                  XDG_SESSION_DESKTOP \
+                                  XDG_SESSION_ID \
+                                  XDG_SESSION_TYPE \
+                                  XDG_CURRENT_DESKTOP )
+            PODMAN_RUN_ARGS+=("-v /tmp/.X11-unix:/tmp/.X11-unix:rw")
+        fi
     fi
+    # if [[ $WITH_GPG_AGENT == 1 ]]; then
+    #     CUR_GPG_SOCK=`gpgconf --list-dir agent-ssh-socket`
+    #     PODMAN_RUN_ARGS+=("-v ${CUR_GPG_SOCK}:/root/.gnupg/S.gpg-agent.ssh")
+    # fi
+    # if [[ $WITH_SSH_AGENT == 1 ]]; then
+    #     echo >&2 "TODO: implement ssh-agent pass through"
+    #     exit 1
+    # fi
     if [[ $WITH_GPU == 1 ]]; then
         PODMAN_RUN_ARGS+=("--device /dev/dri:/dev/dri:rwm")
     fi
@@ -207,9 +270,15 @@
         PODMAN_RUN_ARGS+=("-v $PWD:$PWD")
         PODMAN_RUN_ARGS+=("-w $PWD")
     fi
+
+    for var in "${preserved_vars[@]}"; do
+        if [ "${!var+var_is_set}" = "var_is_set" ]; then
+            PODMAN_RUN_ARGS+=(-e "$var=${!var}")
+        fi
+    done
+
     $PODMAN run \
            ${PODMAN_RUN_ARGS[@]} \
-           -e TERM=xterm-256color\
            --detach-keys=ctrl-\] \
            --security-opt seccomp=unconfined \
            --rm \
@@ -217,4 +286,9 @@
            -it "$IMAGE" \
            bash -lc "${PRE_CMD:-}$*"
     exit
+}
+
+{
+    main "$@"
+    exit $?
 }
