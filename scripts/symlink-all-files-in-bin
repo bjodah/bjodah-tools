@@ -1,0 +1,7 @@
+#!/bin/bash
+# -*- mode: shell-script -*-
+SCRIPT_PATH="$(realpath "${BASH_SOURCE[0]}")"
+REPO_DIR="$(dirname "$SCRIPT_PATH")/.."
+for f in $(compgen -G "$REPO_DIR/bin/*"); do
+    ln -fs "$f" "$HOME/.local/bin"
+done
