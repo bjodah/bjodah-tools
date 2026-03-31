@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# - uses `git worktree list --porcelain` for reliable parsing,
+# - excludes the current worktree by default,
+# - supports spaces in paths,
+# - asks for confirmation,
+# - safely handles cancel/empty selection.
+
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+command -v git >/dev/null 2>&1 || die "git not found"
+command -v fzf >/dev/null 2>&1 || die "fzf not found"
+
+git rev-parse --is-inside-work-tree >/dev/null 2>&1 || die "not inside a git worktree"
+
+current_worktree=$(git rev-parse --show-toplevel)
+
+worktrees=$(
+  git worktree list --porcelain |
+  awk '
+    /^worktree / {
+      path = substr($0, 10)
+      print path
+    }
+  '
+)
+
+[ -n "$worktrees" ] || die "no worktrees found"
+
+candidates=$(
+  printf '%s\n' "$worktrees" |
+  awk -v current="$current_worktree" '
+    $0 != current { print }
+  '
+)
+
+[ -n "$candidates" ] || die "no removable worktrees found"
+
+selected=$(
+  printf '%s\n' "$candidates" |
+  fzf \
+    --prompt='Remove worktree> ' \
+    --height=40% \
+    --reverse \
+    --border \
+    --select-1 \
+    --exit-0
+)
+
+[ -n "${selected:-}" ] || exit 0
+
+printf 'Remove worktree?\n  %s\n[y/N] ' "$selected" >&2
+read -r reply
+
+case "$reply" in
+  y|Y|yes|YES)
+    git worktree remove -- "$selected"
+    ;;
+  *)
+    printf 'aborted\n' >&2
+    exit 0
+    ;;
+esac

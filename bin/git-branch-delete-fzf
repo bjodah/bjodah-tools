@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+command -v git >/dev/null 2>&1 || die "git not found"
+command -v fzf >/dev/null 2>&1 || die "fzf not found"
+
+git rev-parse --is-inside-work-tree >/dev/null 2>&1 || die "not inside a git repository"
+
+delete_flag='-d'
+if [ "${1:-}" = '--force' ] || [ "${1:-}" = '-D' ]; then
+  delete_flag='-D'
+fi
+
+current_branch=$(git branch --show-current)
+[ -n "$current_branch" ] || die "could not determine current branch"
+
+branches=$(
+  git for-each-ref \
+    --sort=committerdate \
+    --format='%(refname:short)|%(committerdate:short)|%(authorname)|%(subject)' \
+    refs/heads
+)
+
+[ -n "$branches" ] || die "no local branches found"
+
+candidates=$(
+  printf '%s\n' "$branches" |
+  awk -F'|' -v current="$current_branch" '$1 != current { print }'
+)
+
+[ -n "$candidates" ] || die "no deletable branches found"
+
+selected_line=$(
+  printf '%s\n' "$candidates" |
+  column -t -s '|' |
+  fzf \
+    --prompt='Delete branch> ' \
+    --height=40% \
+    --reverse \
+    --border \
+    --select-1 \
+    --exit-0
+)
+
+[ -n "${selected_line:-}" ] || exit 0
+
+selected_branch=$(printf '%s\n' "$selected_line" | awk '{print $1}')
+[ -n "$selected_branch" ] || die "failed to parse selected branch"
+
+printf 'Delete branch?\n  %s\nCommand: git branch %s -- %s\n[y/N] ' \
+  "$selected_branch" "$delete_flag" "$selected_branch" >&2
+read -r reply
+
+case "$reply" in
+  y|Y|yes|YES)
+    git branch "$delete_flag" -- "$selected_branch"
+    ;;
+  *)
+    printf 'aborted\n' >&2
+    exit 0
+    ;;
+esac
