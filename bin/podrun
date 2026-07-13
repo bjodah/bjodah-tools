@@ -152,7 +152,7 @@ main () {
                                   XDG_SESSION_ID \
                                   XDG_SESSION_TYPE \
                                   XDG_CURRENT_DESKTOP )
-            PODMAN_RUN_ARGS+=("-v /tmp/.X11-unix:/tmp/.X11-unix:rw")
+            PODMAN_RUN_ARGS+=("-v" "/tmp/.X11-unix:/tmp/.X11-unix:rw")
         fi
     fi
     # if [[ $WITH_GPG_AGENT == 1 ]]; then
@@ -164,11 +164,11 @@ main () {
     #     exit 1
     # fi
     if [[ $WITH_GPU == 1 ]]; then
-        PODMAN_RUN_ARGS+=("--device /dev/dri:/dev/dri:rwm")
+        PODMAN_RUN_ARGS+=("--device" "/dev/dri:/dev/dri:rwm")
     fi
     if [[ $WITH_AUDIO == 1 ]]; then
-        PODMAN_RUN_ARGS+=("--device /dev/snd:/dev/snd")
-        PODMAN_RUN_ARGS+=("--group-add audio")
+        PODMAN_RUN_ARGS+=("--device" "/dev/snd:/dev/snd")
+        PODMAN_RUN_ARGS+=("--group-add" "audio")
         PULSE_SOCKET_DIR="/run/user/$(id -u)/pulse"
         if [ ! -e "${PULSE_SOCKET_DIR}/native" ]; then
             
@@ -176,39 +176,39 @@ main () {
             exit 1
         fi
         PULSE_SERVER_STRING="unix:${PULSE_SOCKET_DIR}/native"
-        PODMAN_RUN_ARGS+=("-v ${PULSE_SOCKET_DIR}:${PULSE_SOCKET_DIR}")
-        PODMAN_RUN_ARGS+=("-e PULSE_SERVER=${PULSE_SERVER_STRING}")
+        PODMAN_RUN_ARGS+=("-v" "${PULSE_SOCKET_DIR}:${PULSE_SOCKET_DIR}")
+        PODMAN_RUN_ARGS+=("-e" "PULSE_SERVER=${PULSE_SERVER_STRING}")
     fi
     if [[ $WITH_GUI == 1 ]]; then
         if [[ -e /mnt/wsl/ ]]; then
-            PODMAN_RUN_ARGS+=("-v /mnt/wsl/:/mnt/wsl/:rw")
+            PODMAN_RUN_ARGS+=("-v" "/mnt/wsl/:/mnt/wsl/:rw")
         fi
         if [[ -e /mnt/wslg/ ]]; then
-            PODMAN_RUN_ARGS+=("-v /mnt/wslg/:/mnt/wslg/:rw")
+            PODMAN_RUN_ARGS+=("-v" "/mnt/wslg/:/mnt/wslg/:rw")
             PRE_CMD="ln -s /mnt/wslg/.X11-unix /tmp/.X11-unix;${PRE_CMD:-}"
         fi
         # if [[ ${XDG_SESSION_TYPE:-x11} == wayland ]]; then
-        PODMAN_RUN_ARGS+=("--net host")
+        PODMAN_RUN_ARGS+=("--net" "host")
 
         if [[ ${WAYLAND_DISPLAY:-""} == wayland* ]]; then
             #PODMAN_RUN_ARGS+=("--volume "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY":/tmp/$WAYLAND_DISPLAY --device /dev/dri --volume $XDG_RUNTIME_DIR/bus:/tmp/bus")
             #PODMAN_RUN_ARGS+=("-e WAYLAND_DISPLAY=/tmp/$WAYLAND_DISPLAY")
             #PODMAN_RUN_ARGS+=("-e DBUS_SESSION_BUS_ADDRESS=/tmp/bus")
-            PODMAN_RUN_ARGS+=("-e WAYLAND_DISPLAY")
-            PODMAN_RUN_ARGS+=("--volume $XDG_RUNTIME_DIR:$XDG_RUNTIME_DIR:rw")
-            PODMAN_RUN_ARGS+=("-e XDG_RUNTIME_DIR")
+            PODMAN_RUN_ARGS+=("-e" "WAYLAND_DISPLAY")
+            PODMAN_RUN_ARGS+=("--volume" "$XDG_RUNTIME_DIR:$XDG_RUNTIME_DIR:rw")
+            PODMAN_RUN_ARGS+=("-e" "XDG_RUNTIME_DIR")
             #PODMAN_RUN_ARGS+=("-e XDG_SESSTION_TYPE")
         fi
-        PODMAN_RUN_ARGS+=("-e DISPLAY=$(echo $DISPLAY | sed 's/localhost/127.0.0.1/g')")
+        PODMAN_RUN_ARGS+=("-e" "DISPLAY=$(echo $DISPLAY | sed 's/localhost/127.0.0.1/g')")
         if [[ -z $XAUTHORITY ]]; then
             if [[ -e $HOME/.Xauthority ]]; then
-                PODMAN_RUN_ARGS+=("-v $HOME/.Xauthority:/root/.Xauthority:rw")
+                PODMAN_RUN_ARGS+=("-v" "$HOME/.Xauthority:/root/.Xauthority:rw")
             else
                 >&2 echo "Warning, could not locate file: .Xauthority, opening GUI windows might not work."
             fi
         else
-            PODMAN_RUN_ARGS+=("-v $XAUTHORITY:$XAUTHORITY:rw")
-            PODMAN_RUN_ARGS+=("-e XAUTHORITY")
+            PODMAN_RUN_ARGS+=("-v" "$XAUTHORITY:$XAUTHORITY:rw")
+            PODMAN_RUN_ARGS+=("-e" "XAUTHORITY")
         fi
     fi
 	# # https://github.com/containers/podman/discussions/13040#discussioncomment-2071464
@@ -267,8 +267,8 @@ main () {
         NAME=$(echo $IMAGE | cut -d: -f1 |  sed 's#/#-#g')
     fi
     if [[ $DO_MOUNT_CWD != 0 ]]; then
-        PODMAN_RUN_ARGS+=("-v $PWD:$PWD")
-        PODMAN_RUN_ARGS+=("-w $PWD")
+        PODMAN_RUN_ARGS+=("-v" "$PWD:$PWD")
+        PODMAN_RUN_ARGS+=("-w" "$PWD")
     fi
 
     for var in "${preserved_vars[@]}"; do
@@ -278,7 +278,7 @@ main () {
     done
 
     $PODMAN run \
-           ${PODMAN_RUN_ARGS[@]} \
+           "${PODMAN_RUN_ARGS[@]}" \
            --detach-keys=ctrl-\] \
            --security-opt seccomp=unconfined \
            --rm \
