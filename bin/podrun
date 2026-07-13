@@ -281,6 +281,7 @@ main () {
            "${PODMAN_RUN_ARGS[@]}" \
            --detach-keys=ctrl-\] \
            --security-opt seccomp=unconfined \
+           --security-opt label=disable \
            --rm \
            --name "$NAME" \
            -it "$IMAGE" \
