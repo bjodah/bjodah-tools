@@ -168,7 +168,7 @@ main () {
     fi
     if [[ $WITH_AUDIO == 1 ]]; then
         PODMAN_RUN_ARGS+=("--device" "/dev/snd:/dev/snd")
-        PODMAN_RUN_ARGS+=("--group-add audio")
+        PODMAN_RUN_ARGS+=("--group-add" "audio")
         PULSE_SOCKET_DIR="/run/user/$(id -u)/pulse"
         if [ ! -e "${PULSE_SOCKET_DIR}/native" ]; then
             
@@ -188,7 +188,7 @@ main () {
             PRE_CMD="ln -s /mnt/wslg/.X11-unix /tmp/.X11-unix;${PRE_CMD:-}"
         fi
         # if [[ ${XDG_SESSION_TYPE:-x11} == wayland ]]; then
-        PODMAN_RUN_ARGS+=("--net host")
+        PODMAN_RUN_ARGS+=("--net" "host")
 
         if [[ ${WAYLAND_DISPLAY:-""} == wayland* ]]; then
             #PODMAN_RUN_ARGS+=("--volume "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY":/tmp/$WAYLAND_DISPLAY --device /dev/dri --volume $XDG_RUNTIME_DIR/bus:/tmp/bus")
